@@ -60,6 +60,26 @@ To find out how long WebKit keeps an unused spare, the probe server held its `GE
 4. The spares carry a request only after the HTML arrives, and the HTML needs a free worker.
 5. After 29 s WebKit closes both spares, which frees the workers, and both pages load at once.
 
+```mermaid
+sequenceDiagram
+    participant A as WebKit A
+    participant B as WebKit B
+    participant Q as listen queue
+    participant W1 as sync worker 1
+    participant W2 as sync worker 2
+
+    A->>W1: spare socket (sends nothing)
+    B->>W2: spare socket (sends nothing)
+    Note over W1,W2: both workers block reading idle sockets
+    A->>Q: GET /
+    B->>Q: GET /
+    Note over Q: no free worker, requests wait
+    A--xW1: closes spare after 29 s
+    B--xW2: closes spare after 29 s
+    W1->>Q: takes GET / (page loads)
+    W2->>Q: takes GET / (page loads)
+```
+
 The model predicts that N sync workers can deadlock once N or more WebKit browsers load at the same time, and that a worker which ignores idle sockets never deadlocks. Two WebKit browsers navigating together, measured with a script outside Playwright's test runner:
 
 | Server | 2 browsers | 3 browsers |
@@ -81,6 +101,22 @@ The 3-worker result matters most. Adding a worker only moves the threshold to th
 
 ```sh
 gunicorn --workers 2 --worker-class gthread --threads 4 'app:create_app()'
+```
+
+How the two worker classes treat an idle spare socket:
+
+```mermaid
+flowchart LR
+    subgraph sync["sync worker (before)"]
+        S1[accept socket] --> S2[block reading, no timeout]
+        S2 --> S3[worker unusable until the socket closes]
+    end
+    subgraph gthread["gthread worker (after)"]
+        G1[accept socket] --> G2[register with selector]
+        G2 --> G3{request bytes arrived?}
+        G3 -- no --> G4[costs a file descriptor only]
+        G3 -- yes --> G5[hand to a free thread]
+    end
 ```
 
 In gunicorn 23.0.0, `ThreadWorker.accept()` registers each new socket with a selector and hands it to a thread only in `on_client_socket_readable()`, which fires once request bytes arrive. An idle spare socket costs a file descriptor, not a thread. This behavior came from gunicorn PR #2918, where a reviewer reported that a few bare TCP connections stopped a gthread worker from answering [3]. The design page also notes that gthread supports keep-alive and that "idle connections close after keepalive timeout" [1].
