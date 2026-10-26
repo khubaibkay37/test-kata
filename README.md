@@ -48,6 +48,8 @@ npx playwright install chromium webkit
 npm run test:e2e
 ```
 
+`test:e2e` runs one test at a time. The claim tests save assignments in the running app's database, so they reset every ticket to unassigned before and after each test with `docker compose exec db psql`. Run it from the repository root against the Compose app (not a remote `DESK_URL`), and don't run it against data you want to keep. Per-test screenshots are written to `test-results/` and attached to the report from `npx playwright show-report`.
+
 Backend tests use a **separate disposable PostgreSQL instance** and do not touch the application's data:
 
 ```sh
@@ -88,6 +90,10 @@ This demo has its own config and is excluded from the regular automated suite. T
 ```sh
 DESK_DEMO_AUTO=1 npm run demo:login
 ```
+
+## Present the claim flow
+
+`npm run demo:claim` walks through the feature the same way (pausing four times): Sara sees **Unassigned**, claims the ticket, refreshes and still sees **Assigned to Sara**, then Omar signs in, sees Sara as the assignee with no claim button, and a direct API claim is refused with 409. It resets all assignments when it starts and finishes, so it can be repeated. Verify it without pauses with `DESK_DEMO_AUTO=1 npm run demo:claim`.
 
 ## Deploy frontend and backend together on Render
 

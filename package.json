@@ -13,7 +13,8 @@
     "test:e2e:ui": "playwright test --ui",
     "test:backend": "docker compose -p desk-tests -f compose.test.yaml up --build --abort-on-container-exit --exit-code-from backend-tests",
     "test:all": "npm run build && npm run test:coverage && npm run test:backend && npm run test:e2e",
-    "demo:login": "playwright test --config=playwright.demo.config.js"
+    "demo:login": "playwright test --config=playwright.demo.config.js login",
+    "demo:claim": "playwright test --config=playwright.demo.config.js claim"
   },
   "devDependencies": {
     "@playwright/test": "1.64.1",

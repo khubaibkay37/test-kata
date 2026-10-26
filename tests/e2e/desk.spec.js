@@ -1,17 +1,5 @@
 import { test, expect } from '@playwright/test';
-
-async function login(page, email = 'sara@example.test', password = 'workshop123') {
-  await page.goto('/');
-  await expect(page).toHaveTitle('Desk · Support inbox');
-  await page.getByLabel('Email', { exact: true }).fill(email);
-  await page.getByLabel('Password', { exact: true }).fill(password);
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-}
-
-async function openTicket(page, subject = 'Invoice export is missing rows') {
-  await page.getByRole('button', { name: new RegExp(subject) }).click();
-  await expect(page.getByRole('heading', { name: subject, exact: true })).toBeVisible();
-}
+import { login, openTicket } from '../support/desk.js';
 
 test('login, ticket details, refresh, and logout use the real API', async ({ page }, testInfo) => {
   const errors = [];
