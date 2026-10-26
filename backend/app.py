@@ -8,11 +8,10 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from auth import COOKIE, create_session, digest, require_user
-from store import connect
+from store import connect, get_ticket, list_tickets
 
 # Match password verification work for unknown emails as well.
 DUMMY_PASSWORD = generate_password_hash('not-a-demo-password')
-TICKET_FIELDS = 't.id,t.customer_id,t.subject,t.description,t.priority,t.created_at,u.name AS customer'
 
 
 def create_app():
@@ -77,7 +76,7 @@ def create_app():
         if not isinstance(email, str) or not isinstance(password, str) or not email.strip() or not password:
             return jsonify(error='Provide an email and password.'), 400
         with connect() as db:
-            user = db.execute('SELECT * FROM users WHERE email=%s', (email.strip().lower(),)).fetchone()
+            user = db.execute('SELECT id,name,email,password_hash,role FROM users WHERE email=%s', (email.strip().lower(),)).fetchone()
             valid = check_password_hash(user['password_hash'] if user else DUMMY_PASSWORD, password)
             if not user or not valid:
                 return jsonify(error='Email or password is incorrect.'), 401
@@ -106,7 +105,7 @@ def create_app():
     @require_user
     def tickets():
         with connect() as db:
-            rows = db.execute(f'SELECT {TICKET_FIELDS} FROM tickets t JOIN users u ON u.id=t.customer_id ORDER BY t.id').fetchall()
+            rows = list_tickets(db)
         return jsonify(rows)
 
     @app.get('/api/tickets/<int:ticket_id>')
@@ -115,7 +114,7 @@ def create_app():
         if ticket_id > 2147483647:
             return jsonify(error='Ticket not found.'), 404
         with connect() as db:
-            row = db.execute(f'SELECT {TICKET_FIELDS} FROM tickets t JOIN users u ON u.id=t.customer_id WHERE t.id=%s', (ticket_id,)).fetchone()
+            row = get_ticket(db, ticket_id)
         if not row:
             return jsonify(error='Ticket not found.'), 404
         return jsonify(row)

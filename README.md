@@ -63,13 +63,13 @@ Reports are generated under `coverage/` and `playwright-report/`. Browser screen
 
 - Frontend: React with strict TypeScript, bundled by Vite and served by Flask alongside `/api/`. `frontend/app.tsx` manages sessions and selection; `frontend/views.tsx` contains the screen components; `frontend/api.ts` and `frontend/types.ts` define the typed API client and domain models.
 - Backend: Flask, Gunicorn, Psycopg; opaque HttpOnly session cookie, server-side session expiry.
-- Database: PostgreSQL 17. Schema lives in `database/migrations/*.sql`, applied in filename order by `migrate()` in `backend/store.py`. `backend/seed.py` runs it on every app start under a transaction lock, then seeds synthetic demo records without resetting existing rows.
+- Database: PostgreSQL 17. Schema lives in `database/migrations/*.sql`, applied once each, in filename order, by `migrate()` in `backend/store.py` (applied files are recorded in `schema_migrations`). `backend/seed.py` runs it on every app start under a transaction lock, then seeds synthetic demo records without resetting existing rows.
 - The combined `app` service is published at `127.0.0.1:8088`. The test database uses localhost port 55439.
 - `npm run build` type-checks the frontend and its unit tests, then builds `frontend/dist/`. The Docker build runs the same checks. CI runs both the build and coverage gate.
 - For frontend hot reload, run `npm run dev`. Vite proxies `/api` to `http://127.0.0.1:8000`; run the backend there, or use Docker Compose for the complete app.
 - After editing the app, run `docker compose up -d --build` to rebuild it.
 - To inspect data: `docker compose exec db psql -U workshop -d supportdesk`.
-- **Migrations:** add a numbered file to `database/migrations/` and keep it idempotent (`IF NOT EXISTS`), since every file is re-run on each start. The database image has no init scripts, so there is one path for fresh and existing databases. To apply a new migration to an existing volume, rebuild and restart the app: `docker compose up -d --build` (do not add `-v`). Existing rows are preserved; `002-ticket-assignee.sql` adds a nullable `tickets.assignee_id` so existing tickets start unassigned.
+- **Migrations:** add a numbered file to `database/migrations/` and keep it idempotent (`IF NOT EXISTS`) as well: a database that predates `schema_migrations` re-runs its files once to adopt them. The database image has no init scripts, so there is one path for fresh and existing databases. To apply a new migration to an existing volume, rebuild and restart the app: `docker compose up -d --build` (do not add `-v`). Existing rows are preserved; `002-ticket-assignee.sql` adds a nullable `tickets.assignee_id` so existing tickets start unassigned.
 
 Run this synthetic workshop environment locally. The demo accounts, HTTP cookie configuration, and known password are for workshop use.
 

@@ -9,6 +9,8 @@ from auth import digest
 from seed import seed
 from store import connect
 
+TICKET_KEYS = {'id', 'customer_id', 'subject', 'description', 'priority', 'created_at', 'customer'}
+
 
 def test_health_and_headers(client):
     response = client.get('/api/health')
@@ -96,7 +98,8 @@ def test_agent_inbox_and_details(client, login):
     assert ticket['subject'] == 'Invoice export is missing rows'
     assert ticket['customer'] == 'Amina'
     assert 'Friday' in ticket['description']
-    assert not {'password_hash', 'token_hash'} & ticket.keys()
+    assert ticket.keys() == TICKET_KEYS
+    assert all(row.keys() == TICKET_KEYS for row in client.get('/api/tickets').json)
 
 
 def test_customer_can_read_own_ticket(client, login):
@@ -189,7 +192,8 @@ def test_local_requests_do_not_trust_forwarded_protocol(client, login):
 
 def test_startup_initializes_an_empty_database_without_resetting_existing_data():
     with connect() as db:
-        db.execute('DROP TABLE sessions,tickets,users')
+        db.execute('DROP SCHEMA public CASCADE')
+        db.execute('CREATE SCHEMA public')
     seed()
     with connect() as db:
         assert db.execute('SELECT count(*) AS count FROM tickets').fetchone()['count'] == 4

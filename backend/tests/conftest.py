@@ -9,7 +9,8 @@ from store import connect, migrate
 def demo_data():
     with connect() as db:
         migrate(db)
-        db.execute('TRUNCATE users,tickets,sessions RESTART IDENTITY CASCADE')
+        tables = [row['tablename'] for row in db.execute("SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename<>'schema_migrations'").fetchall()]
+        db.execute(f"TRUNCATE {','.join(tables)} RESTART IDENTITY CASCADE")
     seed()
 
 
