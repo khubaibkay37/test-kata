@@ -18,3 +18,6 @@ PRODUCT.md
 DESIGN.md
 DESIGN.tokens.json
 facilitator/
+
+# Local skill copy, not part of the participant repo
+.claude/skills/unslop/
