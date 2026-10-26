@@ -9,7 +9,7 @@ import {
 } from "@testing-library/react";
 import { App } from "../app";
 import { ApiError, request, signIn } from "../api";
-import { deferred, ticket, user } from "./fixtures";
+import { claimed, deferred, ticket, user } from "./fixtures";
 import type { Ticket, User } from "../types";
 
 vi.mock("../api", async (importOriginal) => ({
@@ -297,3 +297,104 @@ it("shows an empty inbox when a customer owns none of the returned tickets", asy
   await screen.findByText("No tickets yet. New requests will appear here.");
   expect(api).toHaveBeenCalledTimes(2);
 });
+
+const assigned = { ...ticket, assignee_id: 1, assignee: "Sara" };
+const claimButton = () => screen.getByRole("button", { name: "Assign to me" });
+
+it("claims a ticket once, shows the assignee, and keeps focus on the ticket", async () => {
+  await mountInbox();
+  expect(screen.getByText("Unassigned")).toBeTruthy();
+  const pending = deferred<Ticket>();
+  api.mockImplementationOnce(() => pending.promise);
+  fireEvent.click(claimButton());
+  const busy = screen.getByRole("button", { name: "Assigning…" });
+  expect((busy as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(busy);
+  await act(async () => {
+    pending.resolve(assigned);
+  });
+  expect(screen.getByText("Assigned to Sara")).toBeTruthy();
+  expect(screen.queryByRole("button", { name: /Assign/ })).toBeNull();
+  expect(document.activeElement).toBe(
+    screen.getByRole("heading", { name: ticket.subject }),
+  );
+  const claims = api.mock.calls.filter(
+    ([path]) => path === "/tickets/1/assign",
+  );
+  expect(claims).toEqual([["/tickets/1/assign", { method: "POST" }]]);
+});
+it("explains a lost race and refreshes to the winner's assignment", async () => {
+  await mountInbox();
+  api.mockRejectedValueOnce(
+    new ApiError("This ticket is already assigned to Omar.", 409),
+  );
+  fireEvent.click(claimButton());
+  await waitFor(() =>
+    expect(screen.getByRole("alert").textContent).toBe(
+      "This ticket is already assigned to Omar.",
+    ),
+  );
+  expect(screen.queryByRole("button", { name: "Assign to me" })).toBeNull();
+  api.mockResolvedValueOnce(claimed);
+  fireEvent.click(screen.getByRole("button", { name: "Refresh assignment" }));
+  await screen.findByText("Assigned to Omar");
+  expect(screen.getByRole("alert").textContent).toBe("");
+  expect(api).toHaveBeenLastCalledWith("/tickets/1");
+});
+it("keeps the ticket unassigned and allows a retry after a failed claim", async () => {
+  await mountInbox();
+  api.mockRejectedValueOnce(reject(503));
+  fireEvent.click(claimButton());
+  await waitFor(() =>
+    expect(screen.getByRole("alert").textContent).toBe("Please try again."),
+  );
+  expect(screen.getByText("Unassigned")).toBeTruthy();
+  api.mockResolvedValueOnce(assigned);
+  fireEvent.click(claimButton());
+  await screen.findByText("Assigned to Sara");
+});
+it("returns to sign in when the session expired during a claim", async () => {
+  await mountInbox();
+  api.mockRejectedValueOnce(reject(401));
+  fireEvent.click(claimButton());
+  await screen.findByRole("heading", { name: "Sign in" });
+  expect(screen.getByRole("alert").textContent).toContain(
+    "session has expired",
+  );
+});
+it.each(["resolve", "reject"] as const)(
+  "ignores a claim %s after leaving the ticket",
+  async (outcome) => {
+    signedIn({ mobile: true });
+    render(<App />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: /#1 Invoice export/ }),
+    );
+    await screen.findByRole("heading", { name: ticket.subject });
+    const pending = deferred<Ticket>();
+    api.mockImplementationOnce(() => pending.promise);
+    fireEvent.click(claimButton());
+    fireEvent.click(screen.getByRole("button", { name: "Back to inbox" }));
+    await act(async () => {
+      if (outcome === "resolve") pending.resolve(assigned);
+      else pending.reject(reject(409));
+    });
+    expect(screen.queryByText("Assigned to Sara")).toBeNull();
+    expect(screen.getByRole("alert").textContent).toBe("");
+  },
+);
+it.each([
+  ["unassigned", ticket, "Unassigned"],
+  ["assigned", assigned, "Assigned to Sara"],
+] as const)(
+  "lets a customer see the %s ticket but not claim it",
+  async (_, shown, text) => {
+    api
+      .mockResolvedValueOnce({ ...user, id: 3, role: "customer" })
+      .mockResolvedValueOnce([shown])
+      .mockResolvedValueOnce(shown);
+    render(<App />);
+    await screen.findByText(text);
+    expect(screen.queryByRole("button", { name: /Assign/ })).toBeNull();
+  },
+);

@@ -13,4 +13,6 @@ export interface Ticket {
   description: string;
   priority: "high" | "medium" | "low";
   created_at: string;
+  assignee_id: number | null;
+  assignee: string | null;
 }

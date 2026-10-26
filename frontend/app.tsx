@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ApiError, request, signIn } from "./api";
+import type { Claim } from "./assignment";
 import { Feedback, Inbox, Login, type Detail } from "./views";
 import type { Ticket, User } from "./types";
 
@@ -14,6 +15,7 @@ export function App() {
   const [selected, setSelected] = useState<number | null>(null);
   const [detail, setDetail] = useState<Detail>({ status: "empty" });
   const [showDetail, setShowDetail] = useState(false);
+  const [claim, setClaim] = useState<Claim>({ status: "idle" });
   const revision = useRef(0);
 
   function fail(error: unknown) {
@@ -32,6 +34,7 @@ export function App() {
     const current = ++revision.current;
     setSelected(id);
     setShowDetail(true);
+    setClaim({ status: "idle" });
     setDetail({ status: "loading" });
     try {
       const ticket = await request<Ticket>(`/tickets/${id}`);
@@ -39,6 +42,30 @@ export function App() {
       setDetail({ status: "ready", ticket });
     } catch (error) {
       if (current === revision.current) fail(error);
+    }
+  }
+
+  async function claimTicket(id: number) {
+    const current = revision.current;
+    setClaim({ status: "pending" });
+    try {
+      const ticket = await request<Ticket>(`/tickets/${id}/assign`, {
+        method: "POST",
+      });
+      if (current !== revision.current) return;
+      setClaim({ status: "idle" });
+      setDetail({ status: "ready", ticket });
+    } catch (error) {
+      if (current !== revision.current) return;
+      if (error instanceof ApiError && error.status === 401) fail(error);
+      else
+        setClaim({
+          status:
+            error instanceof ApiError && error.status === 409
+              ? "conflict"
+              : "error",
+          message: (error as Error).message,
+        });
     }
   }
 
@@ -117,7 +144,9 @@ export function App() {
       selected={selected}
       detail={detail}
       showDetail={showDetail}
+      claim={claim}
       onOpen={openTicket}
+      onClaim={claimTicket}
       onBack={() => {
         revision.current++;
         setShowDetail(false);

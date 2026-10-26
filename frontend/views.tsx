@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { flushSync } from "react-dom";
+import { assignmentPanel, type Claim } from "./assignment";
 import type { Ticket, User } from "./types";
 
 const priorities = { high: "High", medium: "Medium", low: "Low" };
@@ -83,11 +84,59 @@ export function Login({
   );
 }
 
-export function TicketDetail({
+function Assignment({
+  user,
   ticket,
+  claim,
+  onClaim,
+  onRefresh,
+}: {
+  user: User;
+  ticket: Ticket;
+  claim: Claim;
+  onClaim: () => void;
+  onRefresh: () => void;
+}) {
+  const panel = assignmentPanel(user, ticket, claim);
+  return (
+    <section className="assignment" aria-label="Assignment">
+      <p className="assignee" role="status">
+        {panel.text}
+      </p>
+      {panel.action === "refresh" ? (
+        <button className="text-button" type="button" onClick={onRefresh}>
+          Refresh assignment
+        </button>
+      ) : panel.action ? (
+        <button
+          className="primary"
+          type="button"
+          disabled={panel.action === "claiming"}
+          onClick={onClaim}
+        >
+          {panel.action === "claiming" ? "Assigning…" : "Assign to me"}
+        </button>
+      ) : null}
+      <p className="error" role="alert">
+        {panel.message}
+      </p>
+    </section>
+  );
+}
+
+export function TicketDetail({
+  user,
+  ticket,
+  claim,
+  onClaim,
+  onRefresh,
   onBack,
 }: {
+  user: User;
   ticket: Ticket;
+  claim: Claim;
+  onClaim: () => void;
+  onRefresh: () => void;
   onBack: () => void;
 }) {
   const heading = useRef<HTMLHeadingElement>(null);
@@ -119,6 +168,13 @@ export function TicketDetail({
         {ticket.subject}
       </h2>
       <p className="customer">{ticket.customer} · Customer</p>
+      <Assignment
+        user={user}
+        ticket={ticket}
+        claim={claim}
+        onClaim={onClaim}
+        onRefresh={onRefresh}
+      />
       <p className="description">{ticket.description}</p>
       <dl className="metadata">
         <dt>Priority</dt>
@@ -141,7 +197,9 @@ export function Inbox({
   selected,
   detail,
   showDetail,
+  claim,
   onOpen,
+  onClaim,
   onBack,
   onSignOut,
 }: {
@@ -150,7 +208,9 @@ export function Inbox({
   selected: number | null;
   detail: Detail;
   showDetail: boolean;
+  claim: Claim;
   onOpen: (id: number) => void;
+  onClaim: (id: number) => void;
   onBack: () => void;
   onSignOut: () => void;
 }) {
@@ -220,7 +280,14 @@ export function Inbox({
         <section className="detail" aria-label="Ticket details">
           <div className="detail-inner">
             {detail.status === "ready" ? (
-              <TicketDetail ticket={detail.ticket} onBack={back} />
+              <TicketDetail
+                user={user}
+                ticket={detail.ticket}
+                claim={claim}
+                onClaim={() => onClaim(detail.ticket.id)}
+                onRefresh={() => onOpen(detail.ticket.id)}
+                onBack={back}
+              />
             ) : detail.status === "loading" ? (
               <p className="empty" role="status">
                 Loading ticket…

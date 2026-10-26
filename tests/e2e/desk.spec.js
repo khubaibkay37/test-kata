@@ -21,7 +21,8 @@ test('login, ticket details, refresh, and logout use the real API', async ({ pag
   await expect(page.getByRole('button', { name: /#[1-4]/ })).toHaveCount(4);
   await openTicket(page);
   await expect(page.getByText('Our October export stops at row 200.', { exact: false })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Assign to me' })).toHaveCount(0);
+  await expect(page.getByRole('status').filter({ hasText: 'Unassigned' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Assign to me' })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('ticket-detail.png'), fullPage: true });
   await page.reload();
   await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
