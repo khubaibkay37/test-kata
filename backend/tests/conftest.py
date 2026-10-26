@@ -2,12 +2,13 @@ import pytest
 
 from app import create_app
 from seed import seed
-from store import connect
+from store import connect, migrate
 
 
 @pytest.fixture(scope='session', autouse=True)
 def demo_data():
     with connect() as db:
+        migrate(db)
         db.execute('TRUNCATE users,tickets,sessions RESTART IDENTITY CASCADE')
     seed()
 

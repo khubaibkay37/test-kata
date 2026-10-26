@@ -63,13 +63,13 @@ Reports are generated under `coverage/` and `playwright-report/`. Browser screen
 
 - Frontend: React with strict TypeScript, bundled by Vite and served by Flask alongside `/api/`. `frontend/app.tsx` manages sessions and selection; `frontend/views.tsx` contains the screen components; `frontend/api.ts` and `frontend/types.ts` define the typed API client and domain models.
 - Backend: Flask, Gunicorn, Psycopg; opaque HttpOnly session cookie, server-side session expiry.
-- Database: PostgreSQL 17. Schema is in `database/001-init.sql`; on an empty database, `backend/seed.py` applies the initial schema under a transaction lock, then seeds synthetic demo records without resetting existing rows.
+- Database: PostgreSQL 17. Schema lives in `database/migrations/*.sql`, applied in filename order by `migrate()` in `backend/store.py`. `backend/seed.py` runs it on every app start under a transaction lock, then seeds synthetic demo records without resetting existing rows.
 - The combined `app` service is published at `127.0.0.1:8088`. The test database uses localhost port 55439.
 - `npm run build` type-checks the frontend and its unit tests, then builds `frontend/dist/`. The Docker build runs the same checks. CI runs both the build and coverage gate.
 - For frontend hot reload, run `npm run dev`. Vite proxies `/api` to `http://127.0.0.1:8000`; run the backend there, or use Docker Compose for the complete app.
 - After editing the app, run `docker compose up -d --build` to rebuild it.
 - To inspect data: `docker compose exec db psql -U workshop -d supportdesk`.
-- Put new migrations in `database/migrations/` and document how to apply them. Postgres init scripts run only when the data volume is first created; rebuilding an image does not apply a migration to existing data.
+- **Migrations:** add a numbered file to `database/migrations/` and keep it idempotent (`IF NOT EXISTS`), since every file is re-run on each start. The database image has no init scripts, so there is one path for fresh and existing databases. To apply a new migration to an existing volume, rebuild and restart the app: `docker compose up -d --build` (do not add `-v`). Existing rows are preserved; `002-ticket-assignee.sql` adds a nullable `tickets.assignee_id` so existing tickets start unassigned.
 
 Run this synthetic workshop environment locally. The demo accounts, HTTP cookie configuration, and known password are for workshop use.
 
@@ -97,7 +97,7 @@ The root `Dockerfile` builds the React frontend, then copies it into the Python 
 2. Use the kata repository root as the build context and `./Dockerfile` as the Dockerfile path. If deploying from the parent presentation repository, set **Root Directory** to `kata`.
 3. Set the web service's `DATABASE_URL` to the database's **internal connection URL**, with both resources in the same Render region. Keep it server-side.
 4. Set the health check path to `/api/health`. Leave Docker Command empty to use the image's startup command. Render supplies `PORT`; startup binds to `0.0.0.0:$PORT` (8000 locally).
-5. Deploy. Startup initializes a completely empty database and seeds the demo accounts once. Existing tables and records are preserved; future schema migrations must be applied explicitly.
+5. Deploy. Startup initializes a completely empty database and seeds the demo accounts once. Existing tables and records are preserved; pending migrations are applied automatically on each start.
 6. Open the service URL and verify login, ticket reads, refresh, and logout. With Render's `RENDER=true` environment marker, Flask trusts one forwarded protocol header so HTTPS login cookies have `Secure`; it retains the original Host for same-origin checks.
 
 Local startup uses the same combined image via `docker compose up --build`. After upgrading from the old three-service Compose layout, use `docker compose down --remove-orphans` followed by `docker compose up -d --build --wait`. This preserves the database volume; do not add `-v`.
