@@ -1,4 +1,4 @@
-"""Desk's read-only ticket API and session endpoints."""
+"""Desk's ticket API (reads and claiming) and session endpoints."""
 import os
 from urllib.parse import urlsplit
 
@@ -8,7 +8,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from auth import COOKIE, create_session, digest, require_user
-from store import connect, get_ticket, list_tickets
+from store import claim_ticket, connect, get_ticket, list_tickets
 
 # Match password verification work for unknown emails as well.
 DUMMY_PASSWORD = generate_password_hash('not-a-demo-password')
@@ -117,6 +117,23 @@ def create_app():
             row = get_ticket(db, ticket_id)
         if not row:
             return jsonify(error='Ticket not found.'), 404
+        return jsonify(row)
+
+    @app.post('/api/tickets/<int:ticket_id>/assign')
+    @require_user
+    def assign(ticket_id):
+        # The assignee is always the signed-in agent; nothing in the request chooses it.
+        if g.user['role'] != 'agent':
+            return jsonify(error='Only support agents can assign tickets.'), 403
+        if ticket_id > 2147483647:
+            return jsonify(error='Ticket not found.'), 404
+        with connect() as db:
+            if not claim_ticket(db, ticket_id, g.user['id']):
+                current = get_ticket(db, ticket_id)
+                if not current:
+                    return jsonify(error='Ticket not found.'), 404
+                return jsonify(error=f"This ticket is already assigned to {current['assignee']}."), 409
+            row = get_ticket(db, ticket_id)
         return jsonify(row)
 
     return app

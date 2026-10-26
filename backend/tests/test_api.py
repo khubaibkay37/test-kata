@@ -9,7 +9,7 @@ from auth import digest
 from seed import seed
 from store import connect
 
-TICKET_KEYS = {'id', 'customer_id', 'subject', 'description', 'priority', 'created_at', 'customer'}
+TICKET_KEYS = {'id', 'customer_id', 'subject', 'description', 'priority', 'created_at', 'customer', 'assignee_id', 'assignee'}
 
 
 def test_health_and_headers(client):

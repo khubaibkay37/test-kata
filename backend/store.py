@@ -28,8 +28,9 @@ def migrate(db):
 
 # The one definition of a ticket as the API returns it. Add new ticket fields here.
 TICKET_SELECT = (
-    'SELECT t.id,t.customer_id,t.subject,t.description,t.priority,t.created_at,u.name AS customer '
-    'FROM tickets t JOIN users u ON u.id=t.customer_id'
+    'SELECT t.id,t.customer_id,t.subject,t.description,t.priority,t.created_at,u.name AS customer,'
+    't.assignee_id,a.name AS assignee '
+    'FROM tickets t JOIN users u ON u.id=t.customer_id LEFT JOIN users a ON a.id=t.assignee_id'
 )
 
 
@@ -39,3 +40,13 @@ def list_tickets(db):
 
 def get_ticket(db, ticket_id):
     return db.execute(f'{TICKET_SELECT} WHERE t.id=%s', (ticket_id,)).fetchone()
+
+
+def claim_ticket(db, ticket_id, user_id):
+    """Assign an unassigned ticket to user_id; True only if this call won the claim.
+
+    The assignee_id IS NULL test and the write are one statement, so under
+    concurrent claims Postgres lets exactly one UPDATE match the row.
+    """
+    cursor = db.execute('UPDATE tickets SET assignee_id=%s WHERE id=%s AND assignee_id IS NULL', (user_id, ticket_id))
+    return cursor.rowcount == 1

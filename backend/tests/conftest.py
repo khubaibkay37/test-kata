@@ -14,6 +14,13 @@ def demo_data():
     seed()
 
 
+@pytest.fixture(autouse=True)
+def unassigned_tickets():
+    """Every test starts with no claimed tickets, whatever ran before it."""
+    with connect() as db:
+        db.execute('UPDATE tickets SET assignee_id=NULL')
+
+
 @pytest.fixture
 def client():
     app = create_app()

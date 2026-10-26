@@ -9,10 +9,9 @@ def assignee_column(db):
     return db.execute("SELECT is_nullable FROM information_schema.columns WHERE table_name='tickets' AND column_name='assignee_id'").fetchone()
 
 
-def test_assignee_is_optional_and_existing_tickets_start_unassigned():
+def test_assignee_is_optional():
     with connect() as db:
         assert assignee_column(db)['is_nullable'] == 'YES'
-        assert db.execute('SELECT count(*) AS count FROM tickets WHERE assignee_id IS NULL').fetchone()['count'] == 4
 
 
 def test_every_migration_file_is_recorded():
